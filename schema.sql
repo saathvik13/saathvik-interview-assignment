@@ -22,7 +22,8 @@ CREATE TABLE IF NOT EXISTS orders_staging (
   discount_code     TEXT,
   order_notes       TEXT,
   ingested_at       TEXT NOT NULL,
-  source_file       TEXT NOT NULL
+  source_file       TEXT NOT NULL,
+  version           TEXT NOT NULL
 );
 
 
@@ -31,7 +32,7 @@ CREATE TABLE IF NOT EXISTS orders (
   customer_id           TEXT,
   customer_name         TEXT,
   email                 TEXT,
-  phone_e164            TEXT,
+  phone                 TEXT,
   country               TEXT,
   state                 TEXT,
   city                  TEXT,
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS orders (
   order_notes           TEXT,
   ingested_at           TEXT NOT NULL,
   source_file           TEXT NOT NULL,
+  version           TEXT NOT NULL,
   PRIMARY KEY (order_id, item_sku)
 );
 
@@ -59,5 +61,8 @@ CREATE TABLE IF NOT EXISTS orders_bad (
   error_reasons     TEXT NOT NULL,       
   raw_row_json      TEXT NOT NULL,       
   ingested_at       TEXT NOT NULL,
-  source_file       TEXT NOT NULL
+  source_file       TEXT NOT NULL,
+  version           TEXT NOT NULL
 );
+
+
