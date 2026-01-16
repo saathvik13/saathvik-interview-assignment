@@ -31,10 +31,10 @@ def normalize_text(s: str | None) -> str | None:
     if s is None:
         return None
 
-    # Convert ANY value to string (numbers, floats, objects)
+    # Convert all valuees to string (numbers, floats, objects)
     s = str(s)
 
-    # Unicode normalization (avoids weird string mismatches)
+    # Unicode normalization 
     s = unicodedata.normalize("NFKC", s).strip()
 
     # Collapse multiple spaces into single space

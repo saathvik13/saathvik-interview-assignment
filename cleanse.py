@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 import re
 from typing import Tuple, List, Dict, Optional
@@ -232,8 +231,9 @@ def validate_row_canonical(row: Dict) -> List[str]:
 # -------------------------------------------------------------------
 
 def canonicalize_row(raw: Dict) -> Dict:
-    # Shortcut alias
+    
     def N(x): return normalize_text(x) if x not in (None, "") else None
+    
     # --- order_id numeric extraction ---
     try:
         order_id = int(re.sub(r"[^\d]", "", raw.get("order_id", ""))) \
