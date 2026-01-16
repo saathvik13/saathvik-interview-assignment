@@ -17,7 +17,26 @@ This project implements a local data ingestion pipeline that reads messy CSV fil
    - `product`
    - `order_info`
    - `order_detail`
-- Provides ingestion traceability (`ingested_at`, `source_file`, `version`)
+
+![Data Quality in Input](Docs/Data_Pipeline.png)    
+
+
+### Key Considerations
+
+- **UTC (Zulu) timestamps** — Ensures consistent, timezone‑agnostic tracking across all ingestion runs.
+- **Read‑as‑TEXT ingestion** — Prevents failures from malformed or mixed‑locale data; parsing is deferred to controlled Python logic.
+- **Schema‑on‑read (ELT) approach** — Canonicalize first, validate next; supports resilience against messy real‑world CSVs. Supports batch and stream processing.
+- **Strict canonicalization before validation** — Normalizes dates, currency, quantities, phones, and emails to guarantee consistent rule enforcement.
+- **Three‑Layer Architecture (Bronze → Silver → Gold)**  
+  - **Raw/Staging (Bronze):** Preserve original rows exactly as received.  
+  - **Clean/Validated (Silver):** Standardized, trusted data.  
+  - **Analytics (Gold):** Dimensions and fact tables in normalized form (1NF/2NF/3NF).
+- **UPSERT‑based ingestion** — Ensures idempotency; safe to reprocess files without creating duplicates.
+- **Global data normalization** — Handles Unicode text, multilingual inputs, international currency formats, and locale‑specific number/date variations.
+- **Reproducibility & lineage** — Every row captures `ingested_at`, `source_file`, `version`, and raw JSON for full traceability.
+- **Lightweight but scalable design** — SQLite used for local simplicity, while structure is migration‑ready for PostgreSQL or cloud warehouses.
+- **SCD‑Friendly** — Raw layer naturally supports SCD2 history; clean layer models SCD1 for simplified consumption.
+
 
 ---
 
@@ -25,14 +44,16 @@ This project implements a local data ingestion pipeline that reads messy CSV fil
 
 ## 2) Project Structure
 
+
 saathvik-interview-assignment/
-├── input.csv               # Input CSV file  
-├── main.py                 # Pipeline orchestration  
-├── io_utils.py             # I/O helper functions  
-├── cleanse.py              # Data preprocessing  
-├── db_utils.py             # DB inserts, upserts, derivations  
-├── schema.sql              # DB table initialization  
-└── README.md               # Documentation  
+├── input.csv               # Input CSV file
+├── main.py                 # Pipeline orchestration
+├── io_utils.py             # I/O Helper functions
+├── cleanse.py              # Data Preprocessing file
+├── db_utils.py             # DB interface - inserts, upserts, derivations
+├── schema.sql              # DB Table Initialization
+└── README.md               # Documentation
+
 
 
 
@@ -62,12 +83,9 @@ python -m venv .venv
 pip install pandas
 ```
 
----
-
-
-## 5) How to Run
+### C. How to Run
 ```bash
-python main.py --csv ./input.csv --db ./shopping.db``
+python main.py --csv ./input.csv --db ./shopping.db
 ```
 
 
@@ -75,97 +93,170 @@ python main.py --csv ./input.csv --db ./shopping.db``
 
 
 
-## 6) Schema Design
+## 5) Schema Design
+The pipeline uses a three‑layer schema—**Staging (Bronze Layer) → Storage(Silver Layer) → Analytic (Gold Layer)**—to ensure traceability, data quality, and reliable downstream modeling.
+
+![Schema Design](Docs/Schema_Diagram.png)
+
+### Raw Layer (`transaction_raw`)
+- Stores the CSV exactly as received.
+- All fields kept as **TEXT** to avoid ingestion failures.
+- Includes metadata (`ingested_at`, `source_file`, `version`).
+- **Purpose:** Preserve original data for auditability and reprocessing.
+
+### Clean Layer (`transaction_cleaned`)
+- Contains validated, normalized, and trusted records.
+- PK: **(order_id, item_sku)** ensures idempotent ingestion.
+- Standardizes dates, currency, phone, quantity, and text fields.
+- **Purpose:** Single source of truth for analytics.
+
+### Bad Records (`transaction_bad`)
+- Stores rejected rows with error reasons and raw JSON.
+- **Purpose:** Full visibility into data quality issues without losing data.
+
+### Dimensions
+- **customer** (PK: `customer_id`)
+- **product** (PK: `item_sku`)
+- **Purpose:** Deduplicate entities and provide consistent lookup tables.
+
+### Fact Tables
+- **order_info**: Order‑level attributes (header).
+- **order_detail**: Line‑level transactions per `(order_id, item_sku)`.
+- **Purpose:** Kimball‑style star schema for efficient analytics.
 
 
-The CSV input is treated as untrusted, and all canonicalization + validation is performed before ingestion.
-
-### Canonicalization Includes
-- Unicode normalization (NFKC)
-- Whitespace cleanup
-- Normalize Phone number using country mapping
-- Currency and price parsing (`$1,234.56`, `1.234,56 €`, etc.)
-- Quantity parsing (supports spelled‑out numbers)
-- Date parsing into normalized `YYYY-MM-DD` format
-- Extracting numeric order IDs
-- Converting 'N/A' strings to `None` type
-
-### Validation Rules Include
-- **order_id** must exist  
-- **order_date** must be valid  
-- **ship_date ≥ order_date**  
-- **quantity** must be a non‑negative integer  
-- **unit_price** must be a non‑negative number  
-- **currency** required  
-- **item_sku** required  
-- Email must be syntactically valid  
-- Must have **at least one** contact method (email/phone/address)  
-- Must have **customer_id** or **customer_name**  
-
-### Duplicate Handling
-- Exact duplicates → **silently dropped**
-- Conflicting duplicates on `(order_id, item_sku)` → **rejected**
-
-### Rejected Records
-Every rejected row is written to `transaction_bad` with:
-- Original raw fields  
-- JSON representation  
-- Error message(s) with `Reason`
-- Metadata - `ingested_at` , `source_file` , `version`  
-
-
----
-
-
-## 7) Key Considerations
-
-- **Use UTC (Zulu) timestamps** — Ensures consistent, timezone‑agnostic tracking across global sources and reruns.
-- **Read all fields as TEXT** — Prevents ingestion failures caused by messy, inconsistent, or locale‑specific data.
-- **Schema‑on‑read approach (ELT)** — Parse and standardize data only after ingestion, enabling resilience to malformed CSVs.
-- **Strict canonicalization before validation** — Ensures dates, numbers, currency, phones, and emails are normalized before applying business rules.
-- **3 Layer Architecture (Staging, Storage, and Analytical layer)** — Preserves original data, ensures clean records, and normalized data form (1NF, 2NF, 3NF etc.) for clarity and traceability.
-- **UPSERT-based ingestion (UPDATE + INSERT)** — Allows safe reprocessing without creating duplicates or corrupting clean tables.
-- **Consistent normalization for global data** — Handles Unicode, multilingual fields, mixed currency formats, and locale-dependent number conventions.
-- **Focus on reproducibility and lineage** — Every load captures file name, version, timestamps, and row-level context for debugging and audit trails.
-- **Lightweight but scalable design** — SQLite used for simplicity, but code structured for easy migration to PostgreSQL or cloud warehouses.
-
+## *Why This Design Works Well*
+- **Traceable:** Every clean/bad row maps back to raw data.
+- **Reliable:** Natural keys enforce idempotency and eliminate duplicates.
+- **Analytics‑ready:** Star schema supports BI and reporting use cases.
+- **Production‑aligned:** Mirrors real-world ingestion patterns (Raw → Clean → Dims/Facts).
+- **Extensible:** Easy to add SCD2, FX normalization, enrichment, and metadata tables.
 
 
 ---
 
 
-## 8) Known Limitations
-- All columns stored as TEXT — Type enforcement happens in Python; the database cannot natively prevent invalid numeric/date/boolean values.
-- Hardcoded reference dictionaries — Currency symbols, phone country codes, and quantity/word-to-number maps live in code, making governance and updates manual.
-- Basic currency detection — Relies on token/symbol matching; ambiguous or mixed-locale price strings may be misinterpreted.
-- Simplified phone normalization — Minimal cleanup and prefixing only; no full E.164 validation or country-specific rules.
-- Limited date parsing — Handles common formats but struggles with locale-specific or non-standard patterns.
-- No multilingual text handling — Names/addresses/descriptions lack transliteration and cross-alphabet normalization.
-- Shallow email validation — Checks only syntactic shape; no domain verification or alias normalization.
-- Configuration hardcoded — Paths, DB settings, and feature flags aren’t externalized via .env or environment variables; not CI-friendly.
-- No SCD strategy — Customer/product updates overwrite history (no Type 2).
-- Minimal versioning — No file checksum tracking; risk of duplicate processing across multiple CSVs/batches.
-- Missing ingestion metadata — No central table for batch IDs, lineage, row counts, durations, schema version, or error summaries.
-- No enrichment logic — Missing values are flagged but not inferred from historical loads or auxiliary sources.
-- Currency not standardized — Prices remain in original currencies without FX normalization to a base currency.
-- Pricing at transaction level — Unit price lives only in fact rows; no stable product-level pricing model.
-- No job orchestration — Single-script execution without scheduling, retries, or monitoring (no Airflow/Prefect).
-- Limited logging/observability — No structured logs, row-level metrics, DQ checks, or alerting on failures.
-- No schema evolution — New/unexpected columns aren’t auto-detected or migrated.
-- Multi-file ingestion not robust — No cross-batch dedupe or lineage across multiple CSVs.
+## 7) Data Quality Issues
+
+![Data Quality in Input](Docs/Input_Error.png)    
+The CSV input is treated as untrusted. The goal is to ensure only standardized, trustworthy data enters analytics tables while preserving full lineage for rejected rows.     
+This pipeline follows: **canonicalize → validate → dedupe → route (clean/bad) → load**.     
 
 
-## 8) Next Steps
+### Data Quality Legend     
 
-- Implement SCD Type 2 — Add `*_history` tables with effective dating and hash‑diff change detection.  
-- Add configurable rules engine — Externalize validation rules (nullability, regex, ranges, referential) in YAML/JSON.  
-- Support cloud warehouses — Add Snowflake, BigQuery, and Redshift loaders using staging/COPY patterns.
-- CI/CD Pipeline - Expand Data Engineering pipelines thorugh Github Actions and Databricks 
-- Move reference dictionaries into DB tables — Currency, phone_prefix, word_to_number with lineage and effective dating.  
-- Add enrichment layer — Infer missing customer/product attributes using historical snapshots and lookup files.  
-- Enhance text cleanup — Normalize emails, transliterate multilingual text, unify casing rules.  
-- Introduce `.env` configuration — Externalize paths, credentials, and environment flags; provide `.env.example`.  
-- Normalize currency — Convert to a base currency using FX rates and move stable product pricing upstream.  
-- Add structured logging & dashboards — Emit JSON logs and build Grafana/Metabase DQ dashboards.  
-- Migrate to PostgreSQL + orchestration — Add Airflow/Prefect DAGs for scheduling, retries, and lineage tracking.  
-- Implement schema evolution — Detect new/unexpected columns and auto‑handle schema drift.  
+| Color | Issue Type |
+|-------|------------|
+| 🔴 **Red** | Bad records (multiple issues) |
+| 🟩 **Light Green** | Invalid email format |
+| 🟪 **Light Purple** | Inconsistent phone format |
+| 🟧 **Light Orange** | Non‑ASCII / corrupt text |
+| 🔵 **Light Blue** | Inconsistent order date formats |
+| 🟢 **Dark Green** | Inconsistent ship date formats |
+| 🟡 **Yellow** | Conflicting prices for same product |
+| 🟣 **Dark Purple** | order_date > ship_date |
+| 🟧 **Dark Orange** | Inconsistent numeric format |    
+
+### a) Canonicalization 
+- **Unicode normalization** - fix accented characters.
+- **Whitespace cleanup** - trim, collapse internal spacing, strip noise.
+- **Phone normalization** - using country dial-code mapping;  keep `+` and digits; remove leading zeros in national numbers.
+- **Price & currency parsing**  
+  - Detect currency from symbols/ISO (e.g., `$`, `€`, `GBP`, `USD`)  
+  - Handle US/EU formats (e.g., `$1,234.56`, `1.234,56 €`)  
+  - Output: numeric `unit_price`, ISO `currency`
+- **Quantity parsing** - numeric and words (`"two" → 2`); integers only.
+- **Date parsing** - across multiple formats & time zones → `YYYY-MM-DD` (UTC normalized).
+- **Order ID extraction** -  mixed strings (strip non-digits).
+- **Convert `"N/A"` / empty strings** to `None`.
+
+### b) Validation Rules (Business & Data Integrity)
+- `order_id` **required** and numeric after cleanup.
+- `order_date` valid; `ship_date ≥ order_date`.
+- `quantity` is **integer ≥ 0**.
+- `unit_price` is **number ≥ 0**.
+- `currency` **required**.
+- `item_sku` **required**.
+- **Email** must be syntactically valid.
+- At least **one contact method** present (email/phone/address).
+- At least **one customer identifier** (customer_id or customer_name).
+
+### c) Duplicate Handling
+- **Exact duplicates** → silently ignored.
+- **Conflicts** on `(order_id, item_sku)` → **rejected** with reasons.
+
+### d) Routing & Persistence
+- **Valid rows → `transaction_cleaned`** (PK: `(order_id, item_sku)`) for idempotent loads.
+- **Invalid rows → `transaction_bad`** with:
+  - `error_reasons` (list of validation failures)
+  - `raw_row_json` (full raw payload)
+  - `ingested_at`, `source_file`, `version`
+- **All rows → `transaction_raw`** (immutable copy + ingestion metadata) for lineage and replay.
+
+### e) Outcomes & Benefits
+- **Clean, analytics-ready** data feeds `customer`, `product`, `order_info`, `order_detail`.
+- **Traceability**: Every clean/bad row maps back to raw with metadata.
+- **Idempotent & safe reruns** via natural key `(order_id, item_sku)` and consistent canonicalization.
+- **Governance**: Bad data is quarantined, not dropped, enabling audits, fixes, and reprocessing.
+
+
+
+---
+
+
+
+## 9) Known Limitations (Data Engineering)
+
+### Data Modeling & Storage
+- All columns stored as TEXT — no DB-level type enforcement for Storage Layer (Silver)
+- Limited schema evolution — new/changed CSV columns not detected.
+- Pricing only at transaction level — no normalized product pricing or FX handling.
+
+### Data Quality & Validation
+- Hardcoded reference dictionaries (currency, phone prefixes, word mapping).
+- Basic currency detection — struggles with mixed-locale formats.
+- Simplified phone normalization — no full E.164 validation.
+- Minimal email validation — syntax-only, no domain/alias checks.
+- Basic Data Enhancement — missing attributes not inferred from history or reference data.
+
+### Reliability, Lineage & Observability
+- Incomplete ingestion metadata table (batch_id, checksums, runtime metrics).
+- Multi-file ingestion not robust — no dedupe or repeated-file detection.
+- No checkpointing — large files must be reprocessed entirely on failure.
+
+### Testing, CI/CD & Orchestration
+- Missing unit tests, integration tests, or data tests.
+- CI/CD pipeline (GitHub Actions) for linting, testing, or validations.
+- No `.env` configuration — settings are hardcoded.
+
+
+---
+
+
+## 10) Next Steps (Roadmap)
+
+### Data Modeling Enhancements
+- Extend **SCD Type 2** for customer/product with effective dating and hash-diffing.
+- Implement **schema evolution** to detect and handle new/changed CSV columns.
+- Introduce **currency normalization** using FX rates and base currency.
+- Move lookup dictionaries to governed **reference tables**.
+
+### Data Quality & Enrichment
+- Build a **config-driven rules engine** (YAML/JSON) for validation.
+- Add **Data IMputation** logic to fill missing customer/product attributes.
+- Improve text cleanup (email normalization, multilingual handling).
+
+### Metadata, Logging & Observability
+- Create an **ingestion_run** table for lineage, checksums, row counts, and errors.
+- Add **structured JSON logs** with run_id, timestamps, and DQ metrics.
+- Build **DQ dashboards** (Metabase/Grafana) for null %, failures, trends.
+
+### Testing & CI/CD
+- Add unit tests for parsing/validation and integration tests for DB flows.
+- Add GitHub Actions workflows for linting, testing, and validation gates.
+- Introduce `.env` and configuration-driven environment separation.
+
+### Scalability & Orchestration
+- Migrate from SQLite to **PostgreSQL** (or warehouse engines).
+- Add **Airflow/Prefect orchestration** for scheduled runs, retries, and lineage tracking.
+- Implement **checkpointed & partitioned ingestion** for large files.
