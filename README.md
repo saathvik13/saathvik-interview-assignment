@@ -2,7 +2,9 @@
 
 This project implements a local data ingestion pipeline that reads messy CSV files, cleans and validates their contents, and loads them into a structured analytical model with full traceability and metadata.
 
+<br>
 ---
+<br>
 
 ## 1) Overview
 
@@ -38,26 +40,30 @@ This project implements a local data ingestion pipeline that reads messy CSV fil
 - **SCD‑Friendly** — Raw layer naturally supports SCD2 history; clean layer models SCD1 for simplified consumption.
 
 
+<br>
 ---
+<br>
 
 
 
 ## 2) Project Structure
 
 
-saathvik-interview-assignment/
-├── input.csv               # Input CSV file
-├── main.py                 # Pipeline orchestration
-├── io_utils.py             # I/O Helper functions
-├── cleanse.py              # Data Preprocessing file
-├── db_utils.py             # DB interface - inserts, upserts, derivations
-├── schema.sql              # DB Table Initialization
-└── README.md               # Documentation
+saathvik-interview-assignment/     
+├── input.csv               # Input CSV file    
+├── main.py                 # Pipeline orchestration    
+├── io_utils.py             # I/O Helper functions    
+├── cleanse.py              # Data Preprocessing file    
+├── db_utils.py             # DB interface - inserts, upserts, derivations    
+├── schema.sql              # DB Table Initialization    
+└── README.md               # Documentation    
 
 
 
 
+<br>
 ---
+<br>
 
 
 ## 3) Prerequisites
@@ -66,7 +72,9 @@ saathvik-interview-assignment/
 - SQLite (bundled with Python as `sqlite3`)
 
 
+<br>
 ---
+<br>
 
 
 ## 4) Setup
@@ -89,7 +97,9 @@ python main.py --csv ./input.csv --db ./shopping.db
 ```
 
 
+<br>
 ---
+<br>
 
 
 
@@ -98,34 +108,39 @@ The pipeline uses a three‑layer schema—**Staging (Bronze Layer) → Storage(
 
 ![Schema Design](Docs/Schema_Diagram.png)
 
-### Raw Layer (`transaction_raw`)
-- Stores the CSV exactly as received.
-- All fields kept as **TEXT** to avoid ingestion failures.
-- Includes metadata (`ingested_at`, `source_file`, `version`).
-- **Purpose:** Preserve original data for auditability and reprocessing.
 
-### Clean Layer (`transaction_cleaned`)
-- Contains validated, normalized, and trusted records.
-- PK: **(order_id, item_sku)** ensures idempotent ingestion.
-- Standardizes dates, currency, phone, quantity, and text fields.
-- **Purpose:** Single source of truth for analytics.
+### BRONZE LAYER
+- #### Staging Layer  (`transaction_raw`)
+   - Stores the CSV exactly as received.
+   - All fields kept as **TEXT** to avoid ingestion failures.
+   - Includes metadata (V`ingested_at`, `source_file`, `version`).
+   - **Purpose:** Preserve original data for auditability and reprocessing.
 
-### Bad Records (`transaction_bad`)
-- Stores rejected rows with error reasons and raw JSON.
-- **Purpose:** Full visibility into data quality issues without losing data.
+### SILVER LAYER 
+- #### Clean Layer  (`transaction_cleaned`)
+   - Contains validated, normalized, and trusted records.
+   - PK: **(order_id, item_sku)** ensures idempotent ingestion.
+   - Standardizes dates, currency, phone, quantity, and text fields.
+   - **Purpose:** Single source of truth for analytics.    
+<br>
 
-### Dimensions
-- **customer** (PK: `customer_id`)
-- **product** (PK: `item_sku`)
-- **Purpose:** Deduplicate entities and provide consistent lookup tables.
+- #### Bad Records (`transaction_bad`)
+   - Stores rejected rows with error reasons and raw JSON.
+   - **Purpose:** Full visibility into data quality issues without losing data.
 
-### Fact Tables
-- **order_info**: Order‑level attributes (header).
-- **order_detail**: Line‑level transactions per `(order_id, item_sku)`.
-- **Purpose:** Kimball‑style star schema for efficient analytics.
+### GOLD LAYER
+- #### Dimensions
+   - **customer** (PK: `customer_id`)
+   - **product** (PK: `item_sku`)
+   - **Purpose:** Deduplicate entities and provide consistent lookup tables.
+
+- #### Fact Tables
+   - **order_info**: Order‑level attributes (header).
+   - **order_detail**: Line‑level transactions per `(order_id, item_sku)`.
+   - **Purpose:** Kimball‑style star schema for efficient analytics.
 
 
-## *Why This Design Works Well*
+### *Why This Design Works Well*
 - **Traceable:** Every clean/bad row maps back to raw data.
 - **Reliable:** Natural keys enforce idempotency and eliminate duplicates.
 - **Analytics‑ready:** Star schema supports BI and reporting use cases.
@@ -133,7 +148,9 @@ The pipeline uses a three‑layer schema—**Staging (Bronze Layer) → Storage(
 - **Extensible:** Easy to add SCD2, FX normalization, enrichment, and metadata tables.
 
 
+<br>
 ---
+<br>
 
 
 ## 7) Data Quality Issues
@@ -146,7 +163,19 @@ This pipeline follows: **canonicalize → validate → dedupe → route (clean/b
 ### Data Quality Legend     
 
 | Color | Issue Type |
-|-------|------------|
+|<br>
+---
+<br><br>
+---
+<br>-|<br>
+---
+<br><br>
+---
+<br><br>
+---
+<br><br>
+---
+<br>|
 | 🔴 **Red** | Bad records (multiple issues) |
 | 🟩 **Light Green** | Invalid email format |
 | 🟪 **Light Purple** | Inconsistent phone format |
@@ -201,7 +230,9 @@ This pipeline follows: **canonicalize → validate → dedupe → route (clean/b
 
 
 
+<br>
 ---
+<br>
 
 
 
@@ -230,7 +261,9 @@ This pipeline follows: **canonicalize → validate → dedupe → route (clean/b
 - No `.env` configuration — settings are hardcoded.
 
 
+<br>
 ---
+<br>
 
 
 ## 10) Next Steps (Roadmap)
