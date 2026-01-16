@@ -1,4 +1,4 @@
-# Data Ingestion Pipeline — README
+# Data Ingestion Pipeline
 
 This project implements a local data ingestion pipeline that reads messy CSV files, cleans and validates their contents, and loads them into a structured analytical model with full traceability and metadata.
 
