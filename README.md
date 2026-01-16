@@ -26,13 +26,14 @@ This project implements a local data ingestion pipeline that reads messy CSV fil
 ## 2) Project Structure
 
 saathvik-interview-assignment/
-├── input.csv                # Input CSV file
-├── main.py                  # pipeline orchestration
-├── io_utils.py              # I/O Helper functions
-├── cleanse.py               # Data Preprocessing file
-├── db_utils.py              # DB interface - inserts, upserts, derivations
-├── schema.sql               # DB Table Initialization
-└── README.md                # ReadMe file
+├── input.csv               # Input CSV file  
+├── main.py                 # Pipeline orchestration  
+├── io_utils.py             # I/O helper functions  
+├── cleanse.py              # Data preprocessing  
+├── db_utils.py             # DB inserts, upserts, derivations  
+├── schema.sql              # DB table initialization  
+└── README.md               # Documentation  
+
 
 
 ---
