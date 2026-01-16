@@ -132,7 +132,6 @@ The pipeline uses a three‑layer schema—**Staging (Bronze Layer) → Storage(
    - PK: **(order_id, item_sku)** ensures idempotent ingestion.
    - Standardizes dates, currency, phone, quantity, and text fields.
    - **Purpose:** Single source of truth for analytics.    
-<br>
 
 - #### Bad Records (`transaction_bad`)
    - Stores rejected rows with error reasons and raw JSON.
@@ -176,15 +175,15 @@ This pipeline follows: **canonicalize → validate → dedupe → route (clean/b
 
 | Color | Issue Type |
 |---|---|
-| 🔴 **Red** | Bad records (multiple issues) |
-| 🟩 **Light Green** | Invalid email format |
-| 🟪 **Light Purple** | Inconsistent phone format |
-| 🟧 **Light Orange** | Non‑ASCII / corrupt text |
-| 🔵 **Light Blue** | Inconsistent order date formats |
-| 🟢 **Dark Green** | Inconsistent ship date formats |
-| 🟡 **Yellow** | Conflicting prices for same product |
-| 🟣 **Dark Purple** | order_date > ship_date |
-| 🟧 **Dark Orange** | Inconsistent numeric format |    
+| 🔴 Red | Bad records (multiple issues) |
+| 🟩 Light Green | Invalid email format |
+| 🟪 Light Purple | Inconsistent phone format |
+| 🟧 Light Orange | Non‑ASCII / corrupt text |
+| 🔵 Light Blue | Inconsistent order date formats |
+| 🟢 Dark Green | Inconsistent ship date formats |
+| 🟡 Yellow | Conflicting prices for same product |
+| 🟣 Dark Purple | order_date > ship_date |
+| 🟧 Dark Orange | Inconsistent numeric format |    
 
 #### Canonicalization 
 - **Unicode normalization** - fix accented characters.
