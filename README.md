@@ -7,17 +7,16 @@ This project implements a local data ingestion pipeline that reads messy CSV fil
 ## 1) Overview
 
 ### End-to-End Pipeline Flow
-1. Load CSV with loose parsing (all columns treated as TEXT)
+1. Ingest raw CSV  
 2. Write raw rows into `transaction_raw`
 3. Canonicalize and validate → produce `clean_rows` + `bad_rows`
 4. Insert validated rows into `transaction_cleaned`
 5. Insert invalid rows into `transaction_bad`
-6. Derive final analytics tables:
+6. Derive final analytics layer split into Dims and Fact Table
    - `customer`
    - `product`
    - `order_info`
    - `order_detail`
-7. Commit and close database connection
 - Provides ingestion traceability (`ingested_at`, `source_file`, `version`)
 
 ---
@@ -26,7 +25,7 @@ This project implements a local data ingestion pipeline that reads messy CSV fil
 
 ## 2) Project Structure
 
-data-pipeline/
+saathvik-interview-assignment/
 ├── input.csv                # Input CSV file
 ├── main.py                  # pipeline orchestration
 ├── io_utils.py              # I/O Helper functions
@@ -53,7 +52,6 @@ data-pipeline/
 ### A. Clone & enter the project
 ```bash
 git clone https://github.com/saathvik13/saathvik-interview-assignment
-cd data-pipeline  ????????
 ```
 
 ### B. Create a virtual environment and install deps (Windows)
@@ -79,17 +77,17 @@ python main.py --csv ./input.csv --db ./shopping.db``
 ## 6) Schema Design
 
 
-he CSV input is treated as untrusted, and all canonicalization + validation is performed before ingestion.
+The CSV input is treated as untrusted, and all canonicalization + validation is performed before ingestion.
 
 ### Canonicalization Includes
 - Unicode normalization (NFKC)
 - Whitespace cleanup
-- Phone number normalization using country mapping
+- Normalize Phone number using country mapping
 - Currency and price parsing (`$1,234.56`, `1.234,56 €`, etc.)
 - Quantity parsing (supports spelled‑out numbers)
-- Date parsing into `YYYY-MM-DD`
+- Date parsing into normalized `YYYY-MM-DD` format
 - Extracting numeric order IDs
-- Converting empty strings to `None`
+- Converting 'N/A' strings to `None` type
 
 ### Validation Rules Include
 - **order_id** must exist  
@@ -111,21 +109,31 @@ he CSV input is treated as untrusted, and all canonicalization + validation is p
 Every rejected row is written to `transaction_bad` with:
 - Original raw fields  
 - JSON representation  
-- Error message(s)  
-- `ingested_at`  
-- `source_file`  
-- `version`  
+- Error message(s) with `Reason`
+- Metadata - `ingested_at` , `source_file` , `version`  
 
-### Key Consideration
-- All ingestion timestamps use **Zulu (UTC)** time.
+
+---
+
+
+## 7) Key Considerations
+
+- **Use UTC (Zulu) timestamps** — Ensures consistent, timezone‑agnostic tracking across global sources and reruns.
+- **Read all fields as TEXT** — Prevents ingestion failures caused by messy, inconsistent, or locale‑specific data.
+- **Schema‑on‑read approach (ELT)** — Parse and standardize data only after ingestion, enabling resilience to malformed CSVs.
+- **Strict canonicalization before validation** — Ensures dates, numbers, currency, phones, and emails are normalized before applying business rules.
+- **3 Layer Architecture (Staging, Storage, and Analytical layer)** — Preserves original data, ensures clean records, and normalized data form (1NF, 2NF, 3NF etc.) for clarity and traceability.
+- **UPSERT-based ingestion (UPDATE + INSERT)** — Allows safe reprocessing without creating duplicates or corrupting clean tables.
+- **Consistent normalization for global data** — Handles Unicode, multilingual fields, mixed currency formats, and locale-dependent number conventions.
+- **Focus on reproducibility and lineage** — Every load captures file name, version, timestamps, and row-level context for debugging and audit trails.
+- **Lightweight but scalable design** — SQLite used for simplicity, but code structured for easy migration to PostgreSQL or cloud warehouses.
 
 
 
 ---
 
 
-## 7) Known Limitations
-### Limitations
+## 8) Known Limitations
 - All columns stored as TEXT — Type enforcement happens in Python; the database cannot natively prevent invalid numeric/date/boolean values.
 - Hardcoded reference dictionaries — Currency symbols, phone country codes, and quantity/word-to-number maps live in code, making governance and updates manual.
 - Basic currency detection — Relies on token/symbol matching; ambiguous or mixed-locale price strings may be misinterpreted.
@@ -140,32 +148,23 @@ Every rejected row is written to `transaction_bad` with:
 - No enrichment logic — Missing values are flagged but not inferred from historical loads or auxiliary sources.
 - Currency not standardized — Prices remain in original currencies without FX normalization to a base currency.
 - Pricing at transaction level — Unit price lives only in fact rows; no stable product-level pricing model.
-- SQLite only — Fine for local dev but unsuitable for high volume, concurrency, or cloud-scale.
 - No job orchestration — Single-script execution without scheduling, retries, or monitoring (no Airflow/Prefect).
 - Limited logging/observability — No structured logs, row-level metrics, DQ checks, or alerting on failures.
 - No schema evolution — New/unexpected columns aren’t auto-detected or migrated.
 - Multi-file ingestion not robust — No cross-batch dedupe or lineage across multiple CSVs.
-- No partitioned staging/checkpointing — Large files not split/streamed; failures can force full re-runs.
-- No cloud DW support — Not yet deployable to Snowflake, BigQuery, or Redshift.
-- No CLI parameterization — Source name and batch identifiers aren’t provided via CLI flags.
 
 
 ## 8) Next Steps
 
 - Implement SCD Type 2 — Add `*_history` tables with effective dating and hash‑diff change detection.  
 - Add configurable rules engine — Externalize validation rules (nullability, regex, ranges, referential) in YAML/JSON.  
-- Expand observability — Emit row counts, per‑column DQ metrics, and configure alerting.  
-- Support cloud warehouses — Add Snowflake, BigQuery, and Redshift loaders using staging/COPY patterns.  
-- Parameterize CLI — Add flags such as `--source`, `--batch-id`, `--as-of-date`, `--schema-version`, `--fail-fast`.  
-- Add partitioned staging & checkpointing — Chunk large files, persist checkpoints, support resume.  
+- Support cloud warehouses — Add Snowflake, BigQuery, and Redshift loaders using staging/COPY patterns.
+- CI/CD Pipeline - Expand Data Engineering pipelines thorugh Github Actions and Databricks 
 - Move reference dictionaries into DB tables — Currency, phone_prefix, word_to_number with lineage and effective dating.  
 - Add enrichment layer — Infer missing customer/product attributes using historical snapshots and lookup files.  
 - Enhance text cleanup — Normalize emails, transliterate multilingual text, unify casing rules.  
 - Introduce `.env` configuration — Externalize paths, credentials, and environment flags; provide `.env.example`.  
-- Improve versioning & dedupe — Use SHA‑256 file checksums and cross‑batch deduplication logic.  
-- Create ingestion metadata table — Track batch ID, lineage, timestamps, row counts, and errors.  
 - Normalize currency — Convert to a base currency using FX rates and move stable product pricing upstream.  
 - Add structured logging & dashboards — Emit JSON logs and build Grafana/Metabase DQ dashboards.  
 - Migrate to PostgreSQL + orchestration — Add Airflow/Prefect DAGs for scheduling, retries, and lineage tracking.  
 - Implement schema evolution — Detect new/unexpected columns and auto‑handle schema drift.  
-- Add partitioned staging formats — Write Parquet partitions for incremental and cloud‑optimized ingestion.  
